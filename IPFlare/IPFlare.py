@@ -77,6 +77,9 @@ def main():
                     if message.rstrip() != "":
                             self.logger.log(self.level, message.rstrip())
 
+            def flush(self):
+                pass
+
     # Replace stdout with logging to file at INFO level
     sys.stdout = CustomLogger(logger, logging.INFO)
     # Replace stderr with logging to file at ERROR level

@@ -6,8 +6,6 @@ import time
 import ipgetter
 import requests
 
-latest_ip = None
-
 #constants
 def BASE_URL():
     return "https://api.cloudflare.com/client/v4/"
@@ -41,22 +39,19 @@ def main():
 
 def update_dns(email, key, zone, names):
     # update logic goes here
-    global latest_ip
     records_updated = False
     public_ip = get_public_ip()
 
-    if public_ip != latest_ip:
-        zone_id = get_zone_id(email, key, zone)
+    zone_id = get_zone_id(email, key, zone)
 
-        for name in names:
-            record_ip, record = get_record_ip_id(email, key, zone_id, name)
-            if (record_ip != public_ip):
-                print("DNS record {0} with IP {1} doesn't match public IP {2}. Updating...".format(record["id"], record_ip, public_ip))
-                update_successful = update_record_ip(email, key, zone_id, record["id"], record, public_ip)
-                print("DNS record updated successfully" if update_successful else "DNS record failed to update")
-                records_updated = True
+    for name in names:
+        record_ip, record = get_record_ip_id(email, key, zone_id, name)
+        if (record_ip != public_ip):
+            print("DNS record {0} with IP {1} doesn't match public IP {2}. Updating...".format(record["id"], record_ip, public_ip))
+            update_successful = update_record_ip(email, key, zone_id, record["id"], record, public_ip)
+            print("DNS record updated successfully" if update_successful else "DNS record failed to update")
+            records_updated = True
 
-        latest_ip = public_ip
     
     if not records_updated:
         print("No updates necessary")

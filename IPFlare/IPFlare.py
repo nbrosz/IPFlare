@@ -5,12 +5,20 @@ import argparse
 import time
 import ipgetter
 import requests
+import logging
+import logging.handlers
+import sys
+
+LOG_FILENAME = "./ipflare.log"
+LOG_LEVEL = logging.INFO  # Could be e.g. "DEBUG" or "WARNING"
 
 #constants
 def BASE_URL():
     return "https://api.cloudflare.com/client/v4/"
 
 def main():
+    global LOG_FILENAME
+    global LOG_LEVEL
 
     parser = argparse.ArgumentParser()
     parser.add_argument("email",
@@ -24,16 +32,63 @@ def main():
     parser.add_argument("-i", "--interval",
                         help="interval in minutes to re-run the update",
                         type=int)
+    parser.add_argument("-l", "--log",
+                        help="location to put logs")
+    parser.add_argument("-d", "--debug",
+                        help="show verbose messages for debugging", action="store_true")
 
     args = parser.parse_args()
 
     dns_names = args.names.split(",")
+    if (args.log):
+        LOG_FILENAME = args.log
+    if (args.debug):
+        LOG_LEVEL = logging.DEBUG
+
+    # Configure logging to log to a file, making a new file at midnight and keeping the last 3 day's data
+    # Give the logger a unique name (good practice)
+    logger = logging.getLogger(__name__)
+    # Set the log level to LOG_LEVEL
+    logger.setLevel(LOG_LEVEL)
+    # Format each log message like this
+    formatter = logging.Formatter('%(asctime)s %(levelname)-8s %(message)s')
+
+    # Output to console as well
+    consolehandler = logging.StreamHandler(sys.stdout)
+    consolehandler.setFormatter(formatter)
+    logger.addHandler(consolehandler)
+
+    # Make a handler that writes to a file, making a new file at midnight and keeping 3 backups
+    filehandler = logging.handlers.TimedRotatingFileHandler(LOG_FILENAME, when="midnight", backupCount=3)
+    # Attach the formatter to the handler
+    filehandler.setFormatter(formatter)
+    # Attach the handler to the logger
+    logger.addHandler(filehandler)
+
+    # Make a class we can use to capture stdout and sterr in the log
+    class CustomLogger(object):
+            def __init__(self, logger, level):
+                    """Needs a logger and a logger level."""
+                    self.logger = logger
+                    self.level = level
+
+            def write(self, message):
+                    # Only log if there is a message (not just a new line)
+                    if message.rstrip() != "":
+                            self.logger.log(self.level, message.rstrip())
+
+    # Replace stdout with logging to file at INFO level
+    sys.stdout = CustomLogger(logger, logging.INFO)
+    # Replace stderr with logging to file at ERROR level
+    sys.stderr = CustomLogger(logger, logging.ERROR)
 
     while True:
         update_dns(args.email, args.key, args.zone, dns_names)
         if not args.interval:
             break
-        print("Waiting for {0} minute{1} before attempting another update...".format(args.interval, "" if args.interval == 1 else "s"))
+        if LOG_LEVEL == logging.DEBUG:
+            print("Waiting for {0} minute{1} before attempting another update...".format(args.interval, "" if args.interval == 1 else "s"))
+        
         time.sleep(args.interval * 60)
 
 
@@ -41,19 +96,23 @@ def update_dns(email, key, zone, names):
     # update logic goes here
     records_updated = False
     public_ip = get_public_ip()
+    logger = logging.getLogger(__name__)
 
     zone_id = get_zone_id(email, key, zone)
 
     for name in names:
         record_ip, record = get_record_ip_id(email, key, zone_id, name)
         if (record_ip != public_ip):
-            print("DNS record {0} with IP {1} doesn't match public IP {2}. Updating...".format(record["id"], record_ip, public_ip))
+            log_message = "DNS record {0} with IP {1} doesn't match public IP {2}. Updating...".format(record["id"], record_ip, public_ip)
+            print(log_message)
+            #logger.info(log_message)
             update_successful = update_record_ip(email, key, zone_id, record["id"], record, public_ip)
-            print("DNS record updated successfully" if update_successful else "DNS record failed to update")
+            log_message = "DNS record updated successfully" if update_successful else "DNS record failed to update"
+            print(log_message)
+            #logger.info(log_message)
             records_updated = True
-
     
-    if not records_updated:
+    if not records_updated and LOG_LEVEL == logging.DEBUG:
         print("No updates necessary")
 
     return

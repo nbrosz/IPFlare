@@ -12,8 +12,6 @@ import sys
 LOG_FILENAME = "./ipflare.log"
 LOG_LEVEL = logging.INFO  # Could be e.g. "DEBUG" or "WARNING"
 
-latest_ip = None
-
 #constants
 def BASE_URL():
     return "https://api.cloudflare.com/client/v4/"
@@ -90,27 +88,23 @@ def main():
 
 def update_dns(email, key, zone, names):
     # update logic goes here
-    global latest_ip
     records_updated = False
     public_ip = get_public_ip()
     logger = logging.getLogger(__name__)
 
-    if public_ip != latest_ip:
-        zone_id = get_zone_id(email, key, zone)
+    zone_id = get_zone_id(email, key, zone)
 
-        for name in names:
-            record_ip, record = get_record_ip_id(email, key, zone_id, name)
-            if (record_ip != public_ip):
-                log_message = "DNS record {0} with IP {1} doesn't match public IP {2}. Updating...".format(record["id"], record_ip, public_ip)
-                print(log_message)
-                #logger.info(log_message)
-                update_successful = update_record_ip(email, key, zone_id, record["id"], record, public_ip)
-                log_message = "DNS record updated successfully" if update_successful else "DNS record failed to update"
-                print(log_message)
-                #logger.info(log_message)
-                records_updated = True
-
-        latest_ip = public_ip
+    for name in names:
+        record_ip, record = get_record_ip_id(email, key, zone_id, name)
+        if (record_ip != public_ip):
+            log_message = "DNS record {0} with IP {1} doesn't match public IP {2}. Updating...".format(record["id"], record_ip, public_ip)
+            print(log_message)
+            #logger.info(log_message)
+            update_successful = update_record_ip(email, key, zone_id, record["id"], record, public_ip)
+            log_message = "DNS record updated successfully" if update_successful else "DNS record failed to update"
+            print(log_message)
+            #logger.info(log_message)
+            records_updated = True
     
     if not records_updated:
         print("No updates necessary")

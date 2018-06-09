@@ -34,12 +34,16 @@ def main():
                         type=int)
     parser.add_argument("-l", "--log",
                         help="location to put logs")
+    parser.add_argument("-d", "--debug",
+                        help="show verbose messages for debugging", action="store_true")
 
     args = parser.parse_args()
 
     dns_names = args.names.split(",")
     if (args.log):
         LOG_FILENAME = args.log
+    if (args.debug):
+        LOG_LEVEL = logging.DEBUG
 
     # Configure logging to log to a file, making a new file at midnight and keeping the last 3 day's data
     # Give the logger a unique name (good practice)
@@ -82,7 +86,9 @@ def main():
         update_dns(args.email, args.key, args.zone, dns_names)
         if not args.interval:
             break
-        print("Waiting for {0} minute{1} before attempting another update...".format(args.interval, "" if args.interval == 1 else "s"))
+        if LOG_LEVEL == logging.DEBUG:
+            print("Waiting for {0} minute{1} before attempting another update...".format(args.interval, "" if args.interval == 1 else "s"))
+        
         time.sleep(args.interval * 60)
 
 
@@ -106,7 +112,7 @@ def update_dns(email, key, zone, names):
             #logger.info(log_message)
             records_updated = True
     
-    if not records_updated:
+    if not records_updated and LOG_LEVEL == logging.DEBUG:
         print("No updates necessary")
 
     return

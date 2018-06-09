@@ -11,6 +11,8 @@ import sys
 
 LOG_FILENAME = "./ipflare.log"
 LOG_LEVEL = logging.INFO  # Could be e.g. "DEBUG" or "WARNING"
+SYNC_ALL = False # Whether 8.8.8.8 (and any future exceptions) should be synced
+SYNC_EXCEPTIONS = ["8.8.8.8"] # public IPs to be ignored during sync unless SYNC_ALL is specified
 
 #constants
 def BASE_URL():
@@ -19,6 +21,7 @@ def BASE_URL():
 def main():
     global LOG_FILENAME
     global LOG_LEVEL
+    global SYNC_ALL
 
     parser = argparse.ArgumentParser()
     parser.add_argument("email",
@@ -36,14 +39,18 @@ def main():
                         help="location to put logs")
     parser.add_argument("-d", "--debug",
                         help="show verbose messages for debugging", action="store_true")
+    parser.add_argument("-a", "--all",
+                        help="always sync public ip regardless of what it is (otherwise doesn't sync for 8.8.8.8)", action="store_true")
 
     args = parser.parse_args()
 
     dns_names = args.names.split(",")
-    if (args.log):
+    if args.log:
         LOG_FILENAME = args.log
-    if (args.debug):
+    if args.debug:
         LOG_LEVEL = logging.DEBUG
+    if args.all:
+        SYNC_ALL = True
 
     # Configure logging to log to a file, making a new file at midnight and keeping the last 3 day's data
     # Give the logger a unique name (good practice)
@@ -96,10 +103,18 @@ def main():
 
 
 def update_dns(email, key, zone, names):
+    global SYNC_ALL
+    global SYNC_EXCEPTIONS
+    global LOG_LEVEL
     # update logic goes here
     records_updated = False
     public_ip = get_public_ip()
     logger = logging.getLogger(__name__)
+
+    if not SYNC_ALL and public_ip in SYNC_EXCEPTIONS:
+        if LOG_LEVEL == logging.DEBUG:
+            print("Skipped syncing excluded public IP {0}".format(public_ip))
+        return # Don't sync an excluded IP
 
     zone_id = get_zone_id(email, key, zone)
 
